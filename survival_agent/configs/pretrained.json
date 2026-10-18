@@ -1,0 +1,7 @@
+{
+  "mode": "pretrained",
+  "model_name_or_path": "./models/qwen2.5-0.5b-instruct",
+  "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "seed": 0,
+  "max_new_tokens": 32
+}

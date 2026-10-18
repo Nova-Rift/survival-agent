@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+models/
+runs/
+artifacts/
+*.pt
+*.pth
+*.pkl
+*.pickle
+*.safe
+*.safetensors
+*.bin
+*.bundle
+*.part

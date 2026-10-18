@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Delivered local message, not an agent capability description",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sender", "sent_tick", "text"],
+  "properties": {
+    "sender": {"type": "integer", "minimum": 0},
+    "sent_tick": {"type": "integer", "minimum": 0},
+    "text": {"type": "string", "minLength": 1, "maxLength": 256}
+  },
+  "$comment": "Runtime also rejects whitespace-only text, unknown/dead senders and messages over the configured bound. Stable sender ID identifies the speaker; no location, hunger, weights, memory or ability metadata is delivered. No promise of truthful or natural-language text."
+}
