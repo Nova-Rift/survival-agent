@@ -1,0 +1,3 @@
+-r requirements.txt
+# Stage-A Gymnasium API tested locally; full fresh ML resolution remains untested.
+gymnasium==1.3.0
