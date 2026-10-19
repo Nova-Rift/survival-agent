@@ -1,5 +1,7 @@
 # Stage B: small recurrent stochastic world model
 
+[Follow-up diagnostic: broader coverage, trivial baselines and posterior/prior gaps](hybrid-stage-b-diagnostics.md)
+
 Original PyTorch vector RSSM in
 [`world_model.py`](../survival_agent/hybrid/world_model.py), built on stage A.
 The stage-A commit and the legacy models remain intact. This milestone trains
@@ -113,7 +115,7 @@ PYTHONPATH=../survival-env:../survival-agent OPENBLAS_NUM_THREADS=1 OMP_NUM_THRE
 ```
 
 Choose a fresh output directory. The integration repo's published dependency
-pins do not include this unpushed branch yet; use the explicit sibling workflow.
+pins do not include this branch yet; use the explicit sibling workflow.
 The smoke creates structured `.safe` model/optimizer/replay/RNG checkpoints,
 `updates.jsonl` and `report.json`; it never calls `torch.load` or pickle. The caller
 constructs the fixed bounded model; checkpoint loading does not construct an
