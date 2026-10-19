@@ -92,6 +92,16 @@ def prediction_scores(records, *, constant=None, bins=5):
                         'mean_predicted_continuation': float(prob.mean()), 'observed_continuation': float(target.mean()),
                         'calibration_bins': calibration,
                         'calibration_ece': float(sum(b['count']/len(records)*abs(b['mean_prediction']-b['observed_continuation']) for b in calibration if b['count']))}
+        death, continues, predicted_death = target == 0, target == 1, prob < .5
+        result[mode].update({
+            'death_recall_at_half': float(predicted_death[death].mean()) if death.any() else None,
+            'death_precision_at_half': float(death[predicted_death].mean()) if predicted_death.any() else None,
+            'continuation_recall_at_half': float((~predicted_death)[continues].mean()) if continues.any() else None,
+            'mean_continuation_on_death': float(prob[death].mean()) if death.any() else None,
+            'mean_continuation_on_survival': float(prob[continues].mean()) if continues.any() else None,
+            'death_conditional_brier': float(np.square(prob[death]).mean()) if death.any() else None,
+            'survival_conditional_brier': float(np.square(1-prob[continues]).mean()) if continues.any() else None,
+        })
         if constant is None:
             result[mode]['observation_mse'] = float(np.mean([r[mode]['observation_mse'] for r in records]))
     if constant is None:

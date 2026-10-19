@@ -45,9 +45,15 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual(scores['constant']['continuation_brier'], .25)
         self.assertAlmostEqual(scores['constant']['continuation_bce'], np.log(2))
         self.assertEqual(scores['constant']['calibration_ece'], 0.)
+        self.assertEqual(scores['constant']['death_recall_at_half'], 0.)
+        self.assertEqual(scores['constant']['death_conditional_brier'], .25)
+        self.assertEqual(scores['constant']['survival_conditional_brier'], .25)
         self.assertEqual(sum(b['count'] for b in scores['constant']['calibration_bins']), 2)
         extreme = prediction_scores(records, constant=(1., 1.))
         self.assertTrue(np.isfinite(extreme['constant']['continuation_bce']))
+        self.assertEqual(extreme['constant']['death_recall_at_half'], 0.)
+        self.assertIsNone(extreme['constant']['death_precision_at_half'])
+        self.assertEqual(extreme['constant']['mean_continuation_on_death'], 1.)
         with self.assertRaises(ValueError):prediction_scores(records, constant=(0., 2.))
 
 

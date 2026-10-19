@@ -2,6 +2,10 @@
 
 The new [Draft-2 hybrid design](docs/hybrid-draft2.md) has separate [stage-A data/replay/checkpoint foundations](docs/hybrid-stage-a.md) and a [stage-B recurrent world model](docs/hybrid-stage-b.md). Actor/imagination learning and the new planners remain unimplemented. The source below remains the original baseline.
 
+[Research notes and implementation index](docs/README.md) includes the saved
+[continual-learning/plasticity proposal and Nature reference](docs/online-plasticity-review.md).
+The recycling and replay changes described there are proposed, not implemented.
+
 Canonical experimental models, local language backend, bounded latent search and model-state serialization. The concrete grid environment is independently maintained in [survival-env](https://github.com/Nova-Rift/survival-env). World collection, adapters, combined checkpoints and examples live in [survival-agent-pilot](https://github.com/Nova-Rift/survival-agent-pilot).
 
 ## Quickstart from this checkout
