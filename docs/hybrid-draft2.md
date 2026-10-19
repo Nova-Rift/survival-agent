@@ -1,5 +1,13 @@
 # Experimental hybrid: architecture and acceptance plan
 
+October 19 update: at Clark's request, the current implementation uses
+[causal transformer memory](../survival_agent/hybrid/transformer_agent.py), with
+the prior/posterior, stochastic state and prediction roles retained. See the
+[README component map](../README.md) for the active architecture. The original
+GRU implementation and its experimental results are preserved. The historical
+stage table below predates the real-interaction actor/critic and this change;
+imagination learning and the proposed planners remain unimplemented.
+
 [Stage A implementation and commands](hybrid-stage-a.md) · [Stage B world model](hybrid-stage-b.md) · [Pinned references](reference-pins.json) · [Existing baseline](../README.md)
 
 This design is an experimental combination of DreamerV3-inspired recurrent stochastic world modeling/imagination, MuZero-inspired discrete search and TD-MPC2-inspired continuous control. It is not a faithful implementation of all three, and no performance advantage is established. Existing history/latent models remain the old baseline; they are not relabeled Draft-2 compliant.
