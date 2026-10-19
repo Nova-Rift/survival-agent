@@ -1,6 +1,6 @@
 # Experimental hybrid: architecture and acceptance plan
 
-[Stage A implementation and commands](hybrid-stage-a.md) · [Pinned references](reference-pins.json) · [Existing baseline](../README.md)
+[Stage A implementation and commands](hybrid-stage-a.md) · [Stage B world model](hybrid-stage-b.md) · [Pinned references](reference-pins.json) · [Existing baseline](../README.md)
 
 This design is an experimental combination of DreamerV3-inspired recurrent stochastic world modeling/imagination, MuZero-inspired discrete search and TD-MPC2-inspired continuous control. It is not a faithful implementation of all three, and no performance advantage is established. Existing history/latent models remain the old baseline; they are not relabeled Draft-2 compliant.
 
@@ -10,8 +10,8 @@ This design is an experimental combination of DreamerV3-inspired recurrent stoch
 |---|---|---|
 | Tasks | Single-agent vector CartPole, Pendulum and deterministic delayed reward; one task per run | Stage-A collection/data smoke only |
 | Actions | Declared discrete count or finite continuous bounds; normalized continuous model/replay coordinates | Stage A |
-| World model | Encoder, deterministic recurrent memory plus stochastic state, observation-conditioned posterior, prior dynamics, decoder, reward and continuation heads | Stage B, unimplemented |
-| World-model training | Real sequence reconstruction/reward/continuation and balanced prior/posterior losses; pinned stabilization details | Stage B, unimplemented |
+| World model | Encoder, deterministic recurrent memory plus stochastic state, observation-conditioned posterior, prior dynamics, decoder, reward and continuation heads | Stage B small vector RSSM implemented; CPU smoke only |
+| World-model training | Real sequence reconstruction/reward/continuation and balanced prior/posterior losses; pinned stabilization details | Stage B implemented with documented simplifications; held-out multi-step reward/continuation errors remain concerning |
 | Actor / state value | Posterior-seeded imagination, lambda returns, entropy/normalization controls and reference-specific gradient boundaries | Stage C, unimplemented |
 | Continuous Q ensemble | Distinct real-replay TD critics, slowly updated targets and explicit ensemble reduction; initially no world-model gradients | Stage D, unimplemented |
 | MPC | Shifted warm start, actor proposals and bounded weighted sampling; Q ensemble with actor action at horizon, state-value ablation | Stage D, unimplemented |
@@ -58,8 +58,8 @@ Full completion requires actual actor-only learning, learned-model planner tests
 
 The [reference manifest](reference-pins.json) pins official implementation revisions and verified upstream MIT license metadata; the paper references are pinned by identifier/version where available. Stage A is original glue/data code using the public Gymnasium API; no third-party algorithm source was copied. Inspect exact source and preserve attribution/license notices before borrowing code in later stages. Upstream MIT licenses do not select a license for this repository; project licensing remains pending.
 
-The Nature paper page could not be retrieved by the browsing tool in this pass. No claim is made that its complete text was read. Algorithm fidelity and detailed reference-code behavior remain work for the corresponding stage.
+The Nature paper page could not be retrieved by the browsing tool in the original reference pass. No claim is made that its complete text was read. Stage B inspected pinned `rssm.py` and `configs.yaml` for KL stops, free nats, uniform mixing, distribution types and loss scales; its reduced PyTorch implementation is not full DreamerV3.
 
 ## World roadmap remains the product goal
 
-CartPole/Pendulum and the delayed-reward task validate agent mechanics; they do not replace the richer simulation goal. The candidate editable 3D world is Luanti with VoxeLibre. Future integration must support equal-capability human-like actors with separate memories, local perception/nearby communication, wildlife, resources and weather as actually supported. Integration, Earth fidelity and learned human behavior are not established. Agent work is paused after stage A while local world setup and honest recorded-world viewing are prioritized.
+CartPole/Pendulum and the delayed-reward task validate agent mechanics; they do not replace survival research. Stage B's real-replay CPU smoke uses the lightweight single-agent survival world. The candidate editable 3D world is Luanti with VoxeLibre. Future integration must support equal-capability human-like actors with separate memories, local perception/nearby communication, wildlife, resources and weather as actually supported. Integration, Earth fidelity and learned human behavior are not established. Stage C and controlled survival/retention comparisons are still pending.

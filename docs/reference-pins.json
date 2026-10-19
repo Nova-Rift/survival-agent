@@ -9,7 +9,7 @@
       "commit": "e01491fad6434b2245a3b8ca201dd7faedcc458c",
       "upstream_license": "MIT",
       "license_sha256": "9a0db563b71a42110ce6e52c066ec957ca908dd2fbff91e85df09d81a43076d2",
-      "status": "Pinned for later stabilization/gradient-source review; full Nature text retrieval failed"
+      "status": "Pinned rssm.py and configs.yaml inspected for stage-B KL/free-nats/unimix/loss scales; full Nature text retrieval failed; original simplified PyTorch implementation, no upstream source copied"
     },
     {
       "name": "TD-MPC2",

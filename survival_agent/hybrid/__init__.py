@@ -1,1 +1,4 @@
-"""Draft-2 hybrid foundations. No world model, learner or planner implemented yet."""
+"""Draft-2 data foundations and stage-B recurrent world model.
+
+Actor/imagination learners, critics and new planners remain unimplemented.
+"""
