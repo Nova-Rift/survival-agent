@@ -111,9 +111,15 @@ This tests value plasticity/retention cheaply; it does not demonstrate a better
 gameplay policy. Use five paired initialization seeds, distinguishable scenario context, and matched transitions,
 optimizer steps, widths, batch size and diagnostic frequency. Proposed small
 pilot budget: measure head-update throughput first, then set a ceiling of 100,000
-head updates total across all arms/seeds, including anchors; start smaller if the
-CPU/runtime budget requires it. Record real stream transitions, update cadence,
-CPU time and total recent/historical replay exposures.
+head updates total across four arms and five seeds: **5,000 head updates per run**.
+This ceiling includes the unmodified-linear anchor. Use ten 500-update scenario
+blocks: **A -> B -> C -> A -> B -> C -> A -> B -> C -> A**. This permits repeated
+switches and three returns to A inside each run. Every paired arm uses the same
+block boundaries, transition stream, replay quotas and sample/update counts.
+Record real stream transitions, update cadence, CPU time and recent/historical
+replay exposures. If throughput requires a smaller cap, revise and freeze the
+phase schedule and eligibility arithmetic on development streams before any
+final evaluation; do not silently shorten a run until recycling cannot occur.
 Preserve the current environment version; synthetic-v2 is a separate later suite.
 
 Report an unmodified-linear anchor plus three architecture-matched arms:
@@ -128,10 +134,38 @@ based only on current activation or error. Track usefulness on **both recent and
 representative older training replay**; veto replacement if historical usefulness
 or an old-replay unit-ablation check indicates support for an older skill. If no
 unit meets conservative criteria, replace none. This is a testable safeguard,
-not a proof against forgetting. The reviewed starting utility is mean absolute activation times outgoing-weight
-magnitude, evaluated on recent and historical probes. Paper examples such as rate
-1e-4, maturity 10,000 and utility EMA .99 are candidate development settings, not
-universal defaults. No fidelity claim is made here.
+not a proof against forgetting. The reviewed starting utility is mean absolute
+activation times outgoing-weight magnitude, evaluated on recent and historical
+probes. Reference examples include rate 1e-4, maturity 10,000 and utility EMA .99;
+these remain **paper-reference settings, not universal defaults or this pilot's
+frozen configuration**. A 10,000-update maturity would permit zero replacements
+in a 5,000-update run and invalidate an active-recycling comparison.
+
+Proposed **pilot-specific** settings are a 32-unit private hidden layer, maturity
+**500 head updates**, and replacement rate **1e-4 per mature unit per head update**.
+Start unit ages at zero. Use the first 500 updates as warm-up, then accumulate
+fractional replacement credit rather than rounding each update to zero:
+`credit += 1e-4 * mature_unit_count`. Offer `floor(credit)` replacement slots and
+subtract the offered integer credit. Select only mature low-utility units that
+pass the historical-usefulness veto. Consume a vetoed slot without replacement,
+so protected-unit vetoes cannot accumulate a later replacement burst. Age and
+utility reset only for actually replaced units; do not reset scenario-wide ages.
+
+The arithmetic offers nonzero scheduling opportunities: with 32 mature units,
+credit accrues at .0032/update; 4,500 post-warm-up updates give **14.4 nominal
+credits**, and the first slot is offered after 313 eligible updates, at run
+update **813**. Actual replacements temporarily reduce the mature count. At most
+14 slots could reset units for up to 500 updates each, reducing nominal credit by
+at most `14 * 500 * 1e-4 = .7`; absent historical vetoes and with sufficient
+low-utility candidates, this leaves roughly **13–14 offered slots** per run.
+This is scheduling arithmetic, not an executed pilot or guaranteed replacements.
+Historical protection may legitimately make actual replacements zero. Log mature
+counts, accrued/offered/vetoed credits and actual replacements. Zero offered slots
+is an eligibility/configuration failure; zero actual replacements after all slots
+are vetoed is **inconclusive about recycling's effect**, not a successful active
+comparison. Never override a historical-skill veto just to produce replacements.
+Choose/freeze utility thresholds and any development revisions before final
+streams. No fidelity claim or final-set tuning is permitted.
 
 An eventual implementation must initialize only the selected private units,
 zero bias/outgoing connections with explicit before/after historical-probe output
@@ -167,13 +201,21 @@ license before implementing or borrowing algorithm code.
 - Before the pilot: all boundary/isolation/reset tests pass; recycling disabled
   reproduces the identical MLP control; only the private value component changes.
 - Critic-only screening proposal: at matched update/transition budgets, recycling
-  must reduce new-task held-out return-prediction error learning-curve area by at least 10%
-versus the
-  regularized-only arm, while old-task held-out return-prediction error rises no more than 5% relative to that
-  arm. Require the direction in at least four of five paired pilot seeds. If the plain
-baseline shows no loss of plasticity, the recycling question is inconclusive,
-not a success. Do not use TD training loss alone as the acceptance metric. These are
-  proposed practical gates, not achieved results or statistically strong evidence.
+  must reduce new-task held-out return-prediction error learning-curve area by at
+  least 10% versus the regularized-only arm, while old-task held-out return error
+  rises no more than 5% relative to that arm. Require the direction in at least
+  four of five paired pilot seeds. If the plain baseline shows no plasticity loss,
+  the recycling question is inconclusive, not a success. Do not use TD training
+  loss alone. Five-seed criteria are **screening gates, not statistical proof**.
+- Overhead screening proposal: recycling adds **no more than 20% training time**
+  relative to the identical regularization-only arm under paired budgets and the
+  same timing protocol. Include recycling bookkeeping, selective optimizer resets
+  and required historical training-probe checks in this algorithmic training cost.
+  Report evaluation and probe timings as separate components as well as total
+  wall time; do not hide necessary recycling probes by excluding them from the
+  overhead calculation. Common scheduled held-out evaluations must be matched
+  across arms. Failure of this practical gate is reported, not tuned away on final
+  streams. None of these performance or overhead gates has been run or achieved.
 - Before adoption: confirm with at least five seeds in the actual during-play
   actor-critic path, identical policy exploration and budgets. Primary measures
   are new-skill learning speed, old-world survival retention, final survival,
