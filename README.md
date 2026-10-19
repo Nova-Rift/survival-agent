@@ -3,11 +3,18 @@
 An experimental agent that learns from a small survival world. It sees nearby
 cells, remembers recent experience, and chooses a movement action.
 
-**Start with [transformer_agent.py](survival_agent/hybrid/transformer_agent.py).**
-The current architecture and action selection are in this one readable file:
-configuration, memory, transformer, world-model heads, actor and critic. It uses
-PyTorch's standard transformer layer; environment, replay and training loops live
-outside the model file. You can understand the model without tracing the older prototypes.
+**Start with [model.py](survival_agent/hybrid/model.py).**
+The complete current neural architecture is in this one file: configuration,
+explicit latent state, causal Transformer, observation encoder, prior/posterior,
+prediction heads, actor and value head. `TransformerModel` returns logits and
+values without selecting an action or imposing a training policy. It uses
+PyTorch's standard Transformer layer and imports environment shape contracts.
+
+[transformer_agent.py](survival_agent/hybrid/transformer_agent.py) contains the
+separate agent helpers: action sampling, frozen-world policy fitting, detached
+features and target-value updates. Environment interaction, replay and optimizer
+loops remain outside the model. Existing imports and checkpoint tensor names
+are preserved.
 
 **Status:** the transformer path passes a small CPU training and checkpoint-replay
 check. It has not had a held-out survival comparison. Earlier measured survival
@@ -56,8 +63,8 @@ These history tokens are numeric state/action vectors, not words.
 | Observation encoder | Converts the local numeric view into features. | Implemented: `TransformerWorldModel.encoder`. |
 | Transformer / working memory | Relates recent state/action tokens using causal attention. Cannot attend to future tokens or another agent's history. | Implemented: `CausalMemory`, `_advance`. |
 | World model | Predicts a latent state before seeing the next observation (**prior**), infers it after seeing it (**posterior**), and predicts observations, reward and whether operation continues. | Implemented: `TransformerWorldModel`. Prediction quality is not established by a smoke test. |
-| Reinforcement learning: actor | Chooses actions. Training increases the probability of actions with higher estimated returns relative to the critic's estimate. | Implemented: `TransformerAgent.actor`, `predict`, `act`. |
-| Reinforcement learning: critic | Estimates discounted future alive-step rewards; helps train the actor. | Implemented: `value`, `target_value`, `update_target`. A value is a return estimate, not a survival probability. |
+| Reinforcement learning: actor | Chooses actions. Training increases the probability of actions with higher estimated returns relative to the critic's estimate. | Implemented: `TransformerModel.actor`, `forward`; action sampling in `TransformerAgent.act`. |
+| Reinforcement learning: critic | Estimates discounted future alive-step rewards; helps train the actor. | Implemented: `TransformerModel.value`; target copy and updates in `TransformerAgent`. A value is a return estimate, not a survival probability. |
 | Replay | Stores real experience for world-model fitting. Reconstructs history from episode starts. | Implemented infrastructure: [replay.py](survival_agent/hybrid/replay.py). This alone is not a forgetting-prevention algorithm. |
 | Text / language | Would encode text or support language interaction. | **Not connected to this agent.** The separate older [language_backend.py](survival_agent/language_backend.py) supports optional local language models. No language model is loaded by the current path. |
 | Continual learning | Would keep learning during ongoing experience while retaining older skills. | **Not implemented or demonstrated as a complete capability.** Current training has separate world-model and policy phases. |

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import numpy as np
 import torch
+from survival_agent.hybrid.model import TransformerModel
 from survival_agent.hybrid import checkpoints
 from survival_agent.hybrid.transformer_agent import (
     TransformerConfig, TransformerLatent, TransformerWorldModel, TransformerAgent)
@@ -21,6 +22,25 @@ class TransformerTests(unittest.TestCase):
     def model(self, continuous=False, **kwargs):
         return TransformerWorldModel(replay_fixture(continuous).spec,
             TransformerConfig(deter=16, hidden=16, stoch=2, classes=3, context=3, **kwargs))
+
+    def test_standalone_model_preserves_gradients_and_has_no_agent_policy(self):
+        world = self.model()
+        model = TransformerModel(world)
+        self.assertTrue(world.training)
+        self.assertTrue(all(p.requires_grad for p in world.parameters()))
+        self.assertFalse(hasattr(model, 'act'))
+        self.assertFalse(hasattr(model, 'target_value'))
+        state, _, _ = world.observe_step(world.initial(1), torch.tensor([0]),
+            torch.ones(1, 2), torch.tensor([True]), stochastic=False)
+        logits, value = model(world.features(state))
+        (logits.square().sum() + value.square().sum()).backward()
+        self.assertGreater(float(world.encoder[0].weight.grad.abs().sum()), 0.)
+        agent = TransformerAgent(self.model())
+        model.load_state_dict({k: v for k, v in agent.state_dict().items()
+                              if not k.startswith('target_value.')}, strict=True)
+        features = torch.randn(2, model.actor.in_features)
+        for actual, expected in zip(model(features), agent.predict(features)):
+            torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
     def test_attention_is_causal_in_training_and_eval_and_padding_is_ignored(self):
         model = self.model(layers=2)
