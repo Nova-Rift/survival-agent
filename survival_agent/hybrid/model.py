@@ -248,3 +248,67 @@ class TransformerModel(nn.Module):
         if features.ndim != 2 or features.shape[1] != self.actor.in_features or not torch.isfinite(features).all():
             raise ValueError('Finite posterior features required')
         return self.actor(features), self.value(features).squeeze(-1)
+
+
+@dataclass(frozen=True)
+class HybridConfig:
+    """Additional neural heads; Transformer dimensions live in TransformerConfig."""
+    hidden: int = 64
+    q_ensemble: int = 5
+    min_std: float = .1
+    max_std: float = 1.
+
+    def __post_init__(self):
+        if type(self.hidden) is not int or not 8 <= self.hidden <= 256:
+            raise ValueError('Hidden width must be 8..256')
+        if type(self.q_ensemble) is not int or not 2 <= self.q_ensemble <= 10:
+            raise ValueError('Q ensemble must contain 2..10 heads')
+        if not 0 < self.min_std <= self.max_std <= 2:
+            raise ValueError('Invalid policy standard deviation bounds')
+
+
+class HybridModel(nn.Module):
+    """Shared Transformer/Dreamer model serving MuZero and TD-MPC2-style search.
+
+    All neural layers are here. Discrete policy logits and state values support
+    MCTS; continuous Gaussian parameters and separate Q heads support MPC/TD.
+    Search, action selection, target copies and optimizer updates live elsewhere.
+    Scalar value/Q predictions use raw reward units; reward reconstruction uses
+    symlog. This is an experimental hybrid, not any full reference algorithm.
+    """
+    def __init__(self, spec, transformer=TransformerConfig(), config=HybridConfig()):
+        super().__init__()
+        self.world_model = TransformerWorldModel(spec, transformer)
+        self.spec, self.config = spec, config
+        width = transformer.deter + transformer.stoch * transformer.classes
+        def head(inp, out):
+            return nn.Sequential(nn.Linear(inp, config.hidden), nn.LayerNorm(config.hidden),
+                                 nn.SiLU(), nn.Linear(config.hidden, out))
+        self.feature_width = width
+        self.action_width = self.world_model.action_width
+        self.actor = head(width, self.action_width * (2 if spec.action.kind == 'continuous' else 1))
+        self.value = head(width, 1)
+        self.q_ensemble = nn.ModuleList(
+            head(width + self.action_width, 1) for _ in range(config.q_ensemble)
+        ) if spec.action.kind == 'continuous' else nn.ModuleList()
+
+    def policy(self, features):
+        parameters = self.actor(features)
+        if self.spec.action.kind == 'discrete':
+            return {'logits': parameters}
+        mean, raw_std = parameters.chunk(2, -1)
+        std = self.config.min_std + (self.config.max_std-self.config.min_std) * raw_std.sigmoid()
+        return {'mean': mean, 'std': std}  # Tanh squashing belongs to the distribution adapter.
+
+    def q_values(self, features, actions):
+        if self.spec.action.kind != 'continuous':
+            raise ValueError('Q ensemble is specific to continuous control')
+        self.world_model.action_features(actions)
+        inputs = torch.cat([features, actions], -1)
+        return torch.stack([head(inputs).squeeze(-1) for head in self.q_ensemble])
+
+    def forward(self, features, actions=None):
+        result = {**self.policy(features), 'value': self.value(features).squeeze(-1)}
+        if actions is not None:
+            result['q_values'] = self.q_values(features, actions)
+        return result

@@ -1,110 +1,69 @@
 # Survival Agent
 
-An experimental agent that learns from a small survival world. It sees nearby
-cells, remembers recent experience, and chooses a movement action.
+**The intended research model combines Transformer memory, Dreamer-inspired
+world modeling and imagination learning, MuZero-inspired discrete MCTS, and
+TD-MPC2-inspired continuous Q learning and MPC.** This is an experimental hybrid,
+not a reproduction of the three reference algorithms.
 
-**Start with [model.py](survival_agent/hybrid/model.py).**
-The complete current neural architecture is in this one file: configuration,
-explicit latent state, causal Transformer, observation encoder, prior/posterior,
-prediction heads, actor and value head. `TransformerModel` returns logits and
-values without selecting an action or imposing a training policy. It uses
-PyTorch's standard Transformer layer and imports environment shape contracts.
+**Read [model.py](survival_agent/hybrid/model.py) for the entire neural architecture.**
+`HybridModel` is the combined model. It contains no search loop, environment
+interaction, action selection or optimizer. Those use its predictions from separate
+modules. The earlier `TransformerModel` remains in that file for existing baselines.
 
-[transformer_agent.py](survival_agent/hybrid/transformer_agent.py) contains the
-separate agent helpers: action sampling, frozen-world policy fitting, detached
-features and target-value updates. Environment interaction, replay and optimizer
-loops remain outside the model. Existing imports and checkpoint tensor names
-are preserved.
+| Component | Implementation |
+|---|---|
+| Transformer | Causal numeric state/action history, learned positions, attention and feed-forward residual blocks. |
+| Dreamer-inspired world model | Observation encoder, categorical prior/posterior, explicit per-stream memory, reconstruction, reward and continuation heads. |
+| Policy and state value | Discrete logits or bounded continuous-action Gaussian parameters, plus a separate state-value head. |
+| TD-MPC2-inspired Q ensemble | Separate continuous state/action value networks; real-replay TD targets use the actual next observation. |
+| MuZero-inspired search | [planning.py](survival_agent/hybrid/planning.py): MCTS using actor priors, latent transitions, value leaves and discounted backups. |
+| Continuous MPC | Same planner module: bounded trajectories, actor proposals, shifted warm starts and exponentially weighted elite optimization. |
+| Learning | [learning.py](survival_agent/hybrid/learning.py): replay-seeded imagination, lambda returns, detached advantages, target critics, real TD and optional planner distillation. |
+| Agent execution | [runtime.py](survival_agent/hybrid/runtime.py): per-stream state, episode resets and actor/MCTS/MPC dispatch. Environment execution stays in the integration repository. |
 
-**Status:** the transformer path passes a small CPU training and checkpoint-replay
-check. It has not had a held-out survival comparison. Earlier measured survival
-results belong to the preserved GRU model; the website still runs a scripted policy.
-
-## How one step works
-
-1. **See:** each agent receives a 5 × 5 local view with eight numeric channels.
-   It cannot see the overhead map or other agents' private memories.
-2. **Remember:** add the previous compact state and action to that agent's history.
-   A causal transformer reads up to 16 recent tokens and produces a memory vector.
-3. **Estimate the present:** combine that memory with the current observation to
-   infer a compact state. This is the **posterior**: what the agent believes after looking.
-4. **Act:** the **actor** turns memory plus inferred state into probabilities for
-   wait, up, right, down and left. Sample one action from those probabilities.
-5. **Repeat:** the world applies the action and supplies the next observation and
-   reward. History resets at a new episode. Each agent has separate history;
-   all eight agents use the same weights.
+The default memory has one layer, four heads, width 32 and a 16-token window.
+Its categorical latent has four variables with four choices each. Inputs are
+numeric observations, not text. Discrete tasks use MCTS; continuous tasks use MPC;
+`planning=False` selects the actor. Both planners use the same world model and
+never receive an environment. They do not run together on every action.
 
 ```mermaid
 flowchart LR
-    H[Previous latent states + actions] --> T[Causal transformer]
-    T --> M[Memory vector]
-    O[Current local observation] --> E[Observation encoder]
-    E --> P[Posterior: infer current state]
-    M --> P
-    M --> F[Memory + inferred state]
-    P --> F
-    F --> A[Actor: action probabilities]
-    A --> X[Sample a movement action]
-    F --> V[Critic: expected future reward]
-    F --> D[Predict observation, reward and continuation]
-    M --> R[Prior: predict state before seeing observation]
+    H[Previous states and actions] --> T[Causal Transformer]
+    O[Actual observation] --> E[Encoder]
+    E --> P[Posterior]
+    T --> P
+    T --> R[Prior dynamics]
+    P --> F[Memory and categorical state]
+    F --> A[Policy head]
+    F --> V[State value]
+    F --> Q[Continuous Q ensemble]
+    F --> D[Observation, reward, continuation]
+    R --> S[Latent imagination and search]
+    A --> S
+    V --> S
+    Q --> S
+    S --> M[Discrete MCTS or continuous MPC]
 ```
 
-The default transformer has **one layer, four attention heads and width 32**.
-The inferred state contains four categorical variables with four choices each.
-Flattening those choices gives 16 numbers; concatenating them with the 32-number
-memory gives the 48 features used by the actor, critic and prediction heads.
-These history tokens are numeric state/action vectors, not words.
+**Validation:** bounded CPU checks run world-model learning, imagined policy/value
+updates, optional distillation, and the appropriate planner on CartPole/Pendulum.
+Tests cover known toy planner choices, gradient isolation, final-observation TD,
+termination/truncation, root masks, reset behavior and safe optimizer/RNG resume.
+These establish implementation behavior, **not useful learned control**. Actor-only
+learning gains, held-out learned-model accuracy, multi-seed planner comparisons,
+continual learning and skill retention remain unproven. The public social game
+and its hosted diagram have not been changed by this implementation.
 
-## Which part does what?
-
-| Part | Purpose in this agent | Current status / code |
-|---|---|---|
-| Observation encoder | Converts the local numeric view into features. | Implemented: `TransformerWorldModel.encoder`. |
-| Transformer / working memory | Relates recent state/action tokens using causal attention. Cannot attend to future tokens or another agent's history. | Implemented: `CausalMemory`, `_advance`. |
-| World model | Predicts a latent state before seeing the next observation (**prior**), infers it after seeing it (**posterior**), and predicts observations, reward and whether operation continues. | Implemented: `TransformerWorldModel`. Prediction quality is not established by a smoke test. |
-| Reinforcement learning: actor | Chooses actions. Training increases the probability of actions with higher estimated returns relative to the critic's estimate. | Implemented: `TransformerModel.actor`, `forward`; action sampling in `TransformerAgent.act`. |
-| Reinforcement learning: critic | Estimates discounted future alive-step rewards; helps train the actor. | Implemented: `TransformerModel.value`; target copy and updates in `TransformerAgent`. A value is a return estimate, not a survival probability. |
-| Replay | Stores real experience for world-model fitting. Reconstructs history from episode starts. | Implemented infrastructure: [replay.py](survival_agent/hybrid/replay.py). This alone is not a forgetting-prevention algorithm. |
-| Text / language | Would encode text or support language interaction. | **Not connected to this agent.** The separate older [language_backend.py](survival_agent/language_backend.py) supports optional local language models. No language model is loaded by the current path. |
-| Continual learning | Would keep learning during ongoing experience while retaining older skills. | **Not implemented or demonstrated as a complete capability.** Current training has separate world-model and policy phases. |
-| Forgetting protection / plasticity | Would preserve older skills and maintain the ability to learn new ones. | **Not implemented or tested here.** [Replay/recycling proposals](docs/online-plasticity-review.md) remain proposals. Freezing the world model during policy training prevents those updates from changing it, but does not demonstrate continual learning. |
-| Planning / imagination | Would compare predicted future action sequences before choosing an action, or learn policy from imagined experience. | **Not used by this path.** Actions come directly from the actor. |
-
-## What training changes
-
-**First, learn the world model from real sequences.** Fit observation reconstruction,
-reward prediction and continuation prediction. Also train the prior and posterior
-to agree using balanced KL losses. The transformer and observation/prediction heads
-all receive gradients. The shared [sequence loss and optimizer](survival_agent/hybrid/world_model.py)
-implement this fitting loop; the historical GRU model is preserved in that file too.
-
-**Then, freeze the world model and learn actions through interaction.** The actor
-and critic train from 16-step real rollouts. Each agent earns 1 when still alive
-after a step and 0 on its death transition. Discounted returns bootstrap from a
-slowly updated target critic when appropriate; death stops bootstrapping, while a
-time-limit cutoff keeps its final-observation value. Inactive agents are masked.
-The loss combines an actor objective, value prediction error and an entropy term
-to encourage exploration. [Collection and policy updates](https://github.com/Nova-Rift/survival-agent-pilot/blob/hybrid-stage-b-survival/survival_adapters/synthetic_control.py)
-are shared with the preserved baseline; [the current transformer driver](https://github.com/Nova-Rift/survival-agent-pilot/blob/hybrid-stage-b-survival/survival_adapters/transformer_control.py)
-selects this model and controls the bounded run.
-
-World-model fitting samples categorical latent states. During control, the
-posterior uses each category's most likely choice, while **actions are sampled**
-from the actor's probabilities. The transformer has no dropout.
-Its 16-token attention window is working memory; it is not long-term skill retention.
-Older information can still influence later tokens through inferred states.
-
-For the tested command, budgets and checkpoint limits, see the
-[transformer integration guide](https://github.com/Nova-Rift/survival-agent-pilot/blob/hybrid-stage-b-survival/docs/transformer-agent.md).
+[Implementation details, reference deviations and runnable commands](docs/hybrid-combination.md).
 
 ## Earlier implementations and larger plan
 
 The [Draft-2 hybrid design](docs/hybrid-draft2.md) includes
 [data/replay/checkpoint foundations](docs/hybrid-stage-a.md) and the preserved
 [GRU world model](docs/hybrid-stage-b.md). The transformer replaces temporal memory
-for the current path at the researcher's request. Imagination learning and the
-new planners remain unfinished. Earlier model files below are separate prototypes,
+for the current path at the researcher's request. The combined implementation adds
+imagination learning and planners; research acceptance gates remain open. Earlier model files below are separate prototypes,
 not additional components silently running inside the transformer agent.
 
 [Research notes and implementation index](docs/README.md) includes the saved

@@ -1,12 +1,13 @@
 # Experimental hybrid: architecture and acceptance plan
 
-October 19 update: at Clark's request, the current implementation uses
-[causal transformer memory](../survival_agent/hybrid/transformer_agent.py), with
-the prior/posterior, stochastic state and prediction roles retained. See the
-[README component map](../README.md) for the active architecture. The original
-GRU implementation and its experimental results are preserved. The historical
-stage table below predates the real-interaction actor/critic and this change;
-imagination learning and the proposed planners remain unimplemented.
+October 19 implementation update: the combined `HybridModel` is now in
+[model.py](../survival_agent/hybrid/model.py), with imagination/TD learning,
+MuZero-style MCTS, continuous MPC and optional distillation in separate modules.
+See [the implementation record](hybrid-combination.md) for exact validation and
+simplifications. The historical stage table below is retained as the original
+plan; its “unimplemented” entries are superseded at the engineering level by that
+record. Its scientific acceptance gates, including demonstrated actor-only learning
+and controlled planner comparisons, are **not** declared satisfied.
 
 [Stage A implementation and commands](hybrid-stage-a.md) · [Stage B world model](hybrid-stage-b.md) · [Pinned references](reference-pins.json) · [Existing baseline](../README.md)
 

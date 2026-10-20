@@ -9,7 +9,7 @@
       "commit": "e01491fad6434b2245a3b8ca201dd7faedcc458c",
       "upstream_license": "MIT",
       "license_sha256": "9a0db563b71a42110ce6e52c066ec957ca908dd2fbff91e85df09d81a43076d2",
-      "status": "Pinned rssm.py and configs.yaml inspected for stage-B KL/free-nats/unimix/loss scales; full Nature text retrieval failed; original simplified PyTorch implementation, no upstream source copied"
+      "status": "Pinned rssm.py/configs.yaml and agent.py imag_loss inspected; original reduced PyTorch categorical world model and detached score-function imagination objective; no upstream source copied"
     },
     {
       "name": "TD-MPC2",
@@ -17,7 +17,8 @@
       "repository": "https://github.com/nicklashansen/tdmpc2",
       "commit": "e9f59321933cbc8e11a002b842adc7d4ffae8ff1",
       "upstream_license": "MIT",
-      "license_sha256": "440d4088a83d19c522dff58918bd92ccb9701c278a35295b92db2456373c4759"
+      "license_sha256": "440d4088a83d19c522dff58918bd92ccb9701c278a35295b92db2456373c4759",
+      "status": "Pinned tdmpc2.py weighted MPC and common/world_model.py Q reduction inspected; original reduced implementation, scalar Q heads and detached representation gradients; no upstream source copied"
     },
     {
       "name": "MuZero",
