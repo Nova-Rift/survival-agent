@@ -5,10 +5,13 @@ world modeling and imagination learning, MuZero-inspired discrete MCTS, and
 TD-MPC2-inspired continuous Q learning and MPC.** This is an experimental hybrid,
 not a reproduction of the three reference algorithms.
 
-**Read [model.py](survival_agent/hybrid/model.py) for the entire neural architecture.**
-`HybridModel` is the combined model. It contains no search loop, environment
-interaction, action selection or optimizer. Those use its predictions from separate
-modules. The earlier `TransformerModel` remains in that file for existing baselines.
+**Read [model.py](survival_agent/hybrid/model.py) for the complete model and training loop.**
+`HybridModel`, MCTS/MPC, replay, world-model fitting, imagination/TD updates,
+optional distillation, collection, evaluation and checkpoint orchestration all
+live in this file. `TrainingSession.run()` is the full training loop; `main()`
+is its executable entry point. Environment definitions and the shared safe
+serialization utility remain dependencies. The earlier `TransformerModel`
+remains available for existing baselines.
 
 | Component | Implementation |
 |---|---|
@@ -16,10 +19,10 @@ modules. The earlier `TransformerModel` remains in that file for existing baseli
 | Dreamer-inspired world model | Observation encoder, categorical prior/posterior, explicit per-stream memory, reconstruction, reward and continuation heads. |
 | Policy and state value | Discrete logits or bounded continuous-action Gaussian parameters, plus a separate state-value head. |
 | TD-MPC2-inspired Q ensemble | Separate continuous state/action value networks; real-replay TD targets use the actual next observation. |
-| MuZero-inspired search | [planning.py](survival_agent/hybrid/planning.py): MCTS using actor priors, latent transitions, value leaves and discounted backups. |
-| Continuous MPC | Same planner module: bounded trajectories, actor proposals, shifted warm starts and exponentially weighted elite optimization. |
-| Learning | [learning.py](survival_agent/hybrid/learning.py): replay-seeded imagination, lambda returns, detached advantages, target critics, real TD and optional planner distillation. |
-| Agent execution | [runtime.py](survival_agent/hybrid/runtime.py): per-stream state, episode resets and actor/MCTS/MPC dispatch. Environment execution stays in the integration repository. |
+| MuZero-inspired search | [model.py](survival_agent/hybrid/model.py): MCTS using actor priors, latent transitions, value leaves and discounted backups. |
+| Continuous MPC | Same model file: bounded trajectories, actor proposals, shifted warm starts and exponentially weighted elite optimization. |
+| Learning | `model.py`, `HybridLearner`: replay-seeded imagination, lambda returns, detached advantages, target critics, real TD and optional planner distillation. |
+| Agent execution | `model.py`, `HybridController` and `TrainingSession`: per-stream state, resets, dispatch and real experience collection. |
 
 The default memory has one layer, four heads, width 32 and a 16-token window.
 Its categorical latent has four variables with four choices each. Inputs are
@@ -55,6 +58,17 @@ learning gains, held-out learned-model accuracy, multi-seed planner comparisons,
 continual learning and skill retention remain unproven. The public social game
 and its hosted diagram have not been changed by this implementation.
 
+From this checkout, run a small complete CPU training loop:
+
+```bash
+python3 -B -m survival_agent.hybrid.model --task CartPole-v1 --output /private/new/run
+```
+
+Use `--task Pendulum-v1` for continuous control, `--mode actor` to disable planning,
+and `--distillation` for optional planner targets. `--help` lists run and resume
+options. The defaults are bounded engineering settings, not a performance protocol.
+No training begins on import.
+
 [Implementation details, reference deviations and runnable commands](docs/hybrid-combination.md).
 
 ## Earlier implementations and larger plan
@@ -87,7 +101,7 @@ The example runs randomly initialized model heads on synthetic observations and 
 
 `requirements.txt` and package metadata define NumPy, security-oriented Torch/safetensors minimums; `requirements-language.txt` and the `language` extra add Transformers/Jinja2. **Fresh dependency installation and wheel build are untested.** Functional checks used legacy Python 3.10.12, NumPy 1.26.4, Torch 2.2.0+cu121 and safetensors 0.4.5 on CPU. This legacy runtime has known advisories; passing checks are not security certification. No dependencies were installed or upgraded.
 
-`HistoryAgent` consumes `(batch, history, 5, obs_width, obs_width)`, normally history 4 and width 5. `LanguageLatentCore` consumes bounded feature vectors. Existing policy heads use **five discrete actions**. `MuZeroModel`/`mcts` provide a minimal PUCT/replay/unroll research scaffold, not full MuZero. Importing core models/search never imports a concrete simulator. Legacy simulator and CLI modules are forwarding shims: explicitly invoking one requires the corresponding environment/integration checkout on the Python path. Combined checkpoint and collector helpers also delegate lazily to pilot adapters. Collectors and environment reconstruction belong in the pilot adapters, not here.
+`HistoryAgent` consumes `(batch, history, 5, obs_width, obs_width)`, normally history 4 and width 5. `LanguageLatentCore` consumes bounded feature vectors. Existing policy heads use **five discrete actions**. `MuZeroModel`/`mcts` provide a minimal PUCT/replay/unroll research scaffold, not full MuZero. Importing core models/search never imports a concrete simulator. Legacy simulator and CLI modules are forwarding shims: explicitly invoking one requires the corresponding environment/integration checkout on the Python path. Historical combined checkpoint and collector helpers delegate lazily to pilot adapters. The new hybrid's generic collection/training loop lives in `hybrid/model.py`; it accepts an external environment and never defines its physics.
 
 The optional language backend accepts vetted local directories and safetensors only; it does not implicitly download. Scratch language mode is random weights with a byte vocabulary. Supported pretrained integration keeps the encoder frozen; full pretrained fine-tuning is unsupported. Some language formatting remains survival-specific. This package does not promise arbitrary observation/action spaces, continuous controls or policy transfer.
 

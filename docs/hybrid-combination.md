@@ -2,25 +2,31 @@
 
 The requested combination is now an executable experimental path, separate from
 historical GRU and posterior-only Transformer baselines. All neural architecture
-is in [`model.py`](../survival_agent/hybrid/model.py), class `HybridModel`.
+is in [`model.py`](../survival_agent/hybrid/model.py), class `HybridModel`; the same
+file now also contains action distributions, MCTS and MPC at Clark's request.
 The supplied private design is not redistributed. This document records the
 implementation and remaining research gates, not completion of every evaluation
 in that design.
 
-## Responsibilities
+## One-file layout
 
-- `model.py`: Transformer world model, categorical prior/posterior, prediction
-  heads, discrete or continuous actor, state value, continuous Q ensemble.
-- `policy.py`: categorical and tanh-Gaussian distributions, sampling/log probabilities.
-- `learning.py`: real-prefix reconstruction, world fitting, imagination, TD,
-  slow targets and optional distillation. Defaults leave distillation disabled.
-- `planning.py`: MCTS and weighted MPC, frozen model copies per call, no environment
-  references. Explicit computation budgets; categorical-mode planning approximation.
-- `runtime.py`: separate state/action/warm-start per stream and reset on either
-  termination or truncation. `auto` dispatches MCTS for discrete, MPC for continuous;
-  planning disabled selects the actor. Actions remain normalized until the collector.
-- Integration repository `survival_adapters/hybrid_combination.py`: actual Gymnasium
-  stepping, replay, bounded training/evaluation, reports and safe boundary checkpoints.
+Clark requested that everything needed for a full training loop be readable in
+`model.py`. The file is ordered as follows:
+
+1. Neural architecture: Transformer/categorical world model, policy, value and Q heads.
+2. Action distributions and MuZero-style MCTS / TD-MPC2-style MPC.
+3. Complete-episode `SequenceReplay` and world-model sequence fitting.
+4. `HybridLearner`: imagination, real TD, optional distillation and optimizer state.
+5. `HybridController`: per-stream memory, episode resets and planner dispatch.
+6. `TrainingSession`: exploration, collection, updates, evaluation and checkpoint resume.
+7. `main()`: runnable CPU training command.
+
+`planning.py`, `learning.py`, `policy.py`, `replay.py` and `runtime.py` are now
+compatibility imports, not additional implementations. `world_model.py` preserves
+the old GRU architecture and re-exports the shared training helpers from `model.py`.
+Environment definitions remain external. Generic shape/adapter contracts and the
+existing pickle-free serializer are supporting dependencies; no training algorithm
+must be read from another file. No environment is loaded or training started on import.
 
 The old `transformer_agent.py` remains the posterior-only baseline, not an alias
 silently redirecting old experiments to a new algorithm. Old checkpoint source
@@ -79,28 +85,43 @@ From the model checkout, using already available dependencies:
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 -B -m unittest discover -v
+python3 -B -m survival_agent.hybrid.model --task CartPole-v1 --output /private/new/cartpole
+python3 -B -m survival_agent.hybrid.model --task Pendulum-v1 --distillation --output /private/new/pendulum
 ```
 
-From the sibling integration checkout:
+The full loop first collects exploratory episodes, then alternates real-replay
+updates and actor/planner collection. Updates fit the world model, train imagined
+policy/value returns, optionally distill planner targets, and train continuous Qs.
+Evaluation uses the same frozen checkpoint with actor/planner modes and restores
+training RNG state afterward. Every cycle writes metrics and a safe checkpoint.
+The collector's step cap is truncation and preserves final-observation bootstrapping.
+
+Defaults: two exploratory episodes, four cycles, one collected episode and two
+update batches per cycle, episodes capped at 16 steps. `TrainingConfig` exposes
+collection/update ratios, batch size, prefix length, replay capacity and evaluation
+count. `--mode actor` disables planning. Distillation remains off by default.
+
+To interrupt and resume at a cycle boundary, keep the original total configuration:
 
 ```bash
-PYTHONPATH=../survival-env:../survival-agent OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
-  python3 -B -m examples.hybrid_combination --task CartPole-v1 --output /private/new/cartpole
-PYTHONPATH=../survival-env:../survival-agent OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
-  python3 -B -m examples.hybrid_combination --task Pendulum-v1 --distillation --output /private/new/pendulum
+python3 -B -m survival_agent.hybrid.model --cycles 4 --run-cycles 2 --output /private/new/part1
+python3 -B -m survival_agent.hybrid.model --cycles 4 --resume /private/new/part1/checkpoint.safe --output /private/new/part2
 ```
 
-Each command has four collection episodes capped at 16 steps, four update cycles,
-and one short evaluation episode each for actor and planner on the same frozen
-checkpoint. Configuration and source hashes are recorded before collection. It
-saves replay, weights, slow targets, optimizers, normalization and RNG at an episode
-boundary using the safe serializer. It does not support mid-episode environment
-resume. A new output directory is mandatory; historical artifacts are not replaced.
+Saved state includes replay, weights, targets, optimizers, normalization, RNG and
+collection/cycle counters. Source, runtime and configuration checks remain strict.
+There is no mid-episode environment resume. Output directories must be new.
+The earlier integration command remains available as a compatibility workflow;
+the primary full-loop command now runs directly from the model repository.
 
 ## Verification and limits
 
-Checks: 50 model tests and 71 integration tests pass, including eight new hybrid
-tests in the model suite. Known tiny
+Checks after consolidation: 52 model tests and 71 integration tests pass. The
+new full-loop test verifies both action types, batched distillation, collector
+truncation and exact equality between uninterrupted and resumed updates/weights.
+Compatibility imports resolve to the same implementation. Actual CLI checks
+complete a CartPole partial run/resume and a Pendulum run with distillation.
+Earlier hybrid checks are recorded below. Known tiny
 models verify delayed-reward MCTS and bounded MPC choices. Actual neural-model
 search does not decode observations or mutate live tensors/weights. Optimizer/RNG
 checkpoint resume reproduces the next update exactly; restored model planning

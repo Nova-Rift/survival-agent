@@ -14,7 +14,7 @@ from .replay import SequenceReplay
 
 
 def source_fingerprint():
-    paths = [Path(__file__).with_name(name) for name in ['contracts.py','replay.py','checkpoints.py']]
+    paths = [Path(__file__).with_name(name) for name in ['contracts.py','replay.py','model.py','checkpoints.py']]
     paths.append(Path(checkpoint_io.__file__))
     return hashlib.sha256(b''.join(path.read_bytes() for path in paths)).hexdigest()
 

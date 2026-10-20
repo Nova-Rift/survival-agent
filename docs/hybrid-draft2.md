@@ -2,7 +2,8 @@
 
 October 19 implementation update: the combined `HybridModel` is now in
 [model.py](../survival_agent/hybrid/model.py), with imagination/TD learning,
-MuZero-style MCTS, continuous MPC and optional distillation in separate modules.
+MuZero-style MCTS, continuous MPC, optional distillation and the complete training
+loop in that same file. Older modules retain compatibility imports.
 See [the implementation record](hybrid-combination.md) for exact validation and
 simplifications. The historical stage table below is retained as the original
 plan; its “unimplemented” entries are superseded at the engineering level by that

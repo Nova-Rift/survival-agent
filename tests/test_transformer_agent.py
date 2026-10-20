@@ -115,7 +115,7 @@ class TransformerTests(unittest.TestCase):
         replay = replay_fixture(); rows = replay.sample(1, burn_in=2, unroll=2)
         model = self.model(); batch = sequence_batch(rows, replay.spec)
         batch['observations'].requires_grad_(True)
-        with patch('survival_agent.hybrid.world_model.sequence_batch', return_value=batch):
+        with patch('survival_agent.hybrid.model.sequence_batch', return_value=batch):
             sequence_loss(model, rows, stochastic=False)['total'].backward()
         self.assertEqual(float(batch['observations'].grad[:, :3].abs().sum()), 0.)
         self.assertGreater(float(batch['observations'].grad[:, 3:].abs().sum()), 0.)
